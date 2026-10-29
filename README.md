@@ -1,5 +1,5 @@
 Members:
-Adrian Frederick G. Silpao
+Adrian Frederick G. Silpao, 
 Kennet Sabico
 
 # DietTrack
