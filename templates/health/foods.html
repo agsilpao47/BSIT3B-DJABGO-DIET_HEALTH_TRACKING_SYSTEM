@@ -1,0 +1,187 @@
+{% extends "theme/base.html" %}
+{% block content %}
+<div class="container-xl">
+  <div class="page-header d-print-none mb-3">
+    <div class="page-pretitle">Recommendations</div>
+    <h2 class="page-title">Food Tips</h2>
+  </div>
+
+  {% include 'theme/messages.html' %}
+
+  <div class="btn-group mb-3" role="group" aria-label="Food list">
+    <a href="{% url 'info:foods' %}?catalog=recommended"
+       class="btn {% if not catalog_mode %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      For your profile
+    </a>
+    <a href="{% url 'info:foods' %}?catalog=all"
+       class="btn {% if catalog_mode %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      All foods and prices
+    </a>
+  </div>
+
+  {% if catalog_mode %}
+  <div class="alert alert-warning">
+    This catalog shows every food and its estimated price, regardless of your budget or profile.
+    Check ingredients and allergens before choosing a food.
+  </div>
+  {% endif %}
+
+  <p class="text-secondary">
+    {% if not catalog_mode %}
+    {% if profile.age >= 20 %}
+    Showing meals for a <strong class="text-capitalize">{{ profile.status_label }}</strong> status
+    {% else %}
+    Showing general food ideas for age <strong>{{ profile.age }}</strong>
+    {% endif %}
+    {% if profile.recommendation_conditions %}
+    and your health status.
+    {% endif %}
+    These are general food ideas, not a medical meal plan. Check ingredients and discuss food choices
+    with a clinician or dietitian if you have a health condition or food allergy.
+    {% if has_food_allergies %}
+    {% if has_unlisted_food_allergy %}
+    Food tips are hidden because your allergy is not listed in the choices. Please check ingredients with a healthcare professional.
+    {% else %}
+    Foods without allergen information are hidden, but always verify package labels and ingredients.
+    {% endif %}
+    {% endif %}
+    {% if profile.age < 20 %}
+    Adult BMI categories are not used to filter suggestions for people under 20.
+    {% endif %}
+    {% else %}
+    Prices are estimates per serving and may vary by location.
+    {% endif %}
+  </p>
+  {% if profile.daily_food_budget and not catalog_mode %}
+  <div class="alert alert-info">
+    {{ profile.get_food_budget_period_display }} food budget:
+    <strong>₱{{ profile.daily_food_budget }}</strong>.
+    {% if profile.food_budget_period == 'monthly' %}
+    This is treated as about <strong>₱{{ profile.daily_food_budget_limit|floatformat:2 }} per day</strong>
+    over 30 days.
+    {% endif %}
+    This page shows the lowest-cost matching option per meal type that fits the daily allowance;
+    the selected estimated daily total is <strong>₱{{ food_plan_total }}</strong>.
+    Prices are estimates and may vary by location.
+  </div>
+  {% endif %}
+
+  <form method="get" class="card card-body mb-3">
+    <input type="hidden" name="catalog" value="{% if catalog_mode %}all{% else %}recommended{% endif %}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label" for="meal_type_filter">Meal time</label>
+        <select class="form-select" id="meal_type_filter" name="meal_type">
+          <option value="">All meal times</option>
+          {% for value, label in meal_type_choices %}
+          <option value="{{ value }}" {% if selected_meal_type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="food_category_filter">Food type</label>
+        <select class="form-select" id="food_category_filter" name="food_category">
+          <option value="">All food types</option>
+          {% for value, label in food_category_choices %}
+          <option value="{{ value }}" {% if selected_food_category == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a href="{% url 'info:foods' %}" class="btn btn-outline-secondary">Clear</a>
+      </div>
+    </div>
+  </form>
+
+  {% if user.is_staff %}
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title">{% if editing_food %}Update food tip{% else %}Add a food tip{% endif %}</h3>
+    </div>
+    <form method="post" action="{% if editing_food %}{% url 'info:food_edit' editing_food.id %}{% else %}{% url 'info:food_create' %}{% endif %}">
+      {% csrf_token %}
+      <div class="card-body">
+        <div class="row g-3">
+          {% for field in food_form %}
+          <div class="{% if field.name == 'description' or field.name == 'ingredients' or field.name == 'preparation_details' or field.name == 'conditions' %}col-12{% else %}col-md-6{% endif %}">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger">{{ field.errors.0 }}</div>{% endif %}
+            {% if field.name == 'allergens' %}<div class="form-hint">Add known allergens to help filter tips for users who list food allergies.</div>{% endif %}
+            {% if field.name == 'estimated_cost' %}<div class="form-hint">Use a realistic local estimate per serving; prices may vary.</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-footer">
+        <button type="submit" class="btn btn-primary">{% if editing_food %}Save changes{% else %}Add food{% endif %}</button>
+        {% if editing_food %}<a href="{% url 'info:foods' %}" class="btn btn-link">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="row row-cards mb-3">
+    {% for food in foods %}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="subheader">{{ food.get_meal_type_display }} · {{ food.get_food_category_display }}</div>
+          <h3 class="card-title">{{ food.name }}</h3>
+          <p class="text-secondary">{{ food.description }}</p>
+          {% if food.ingredients %}<div class="small"><strong>Ingredients:</strong> {{ food.ingredients|linebreaksbr }}</div>{% endif %}
+          {% if food.preparation_details %}<div class="small mt-2"><strong>Preparation:</strong> {{ food.preparation_details|linebreaksbr }}</div>{% endif %}
+          <div class="text-muted">{{ food.calories }} kcal</div>
+          {% if food.estimated_cost is not None %}<div class="text-muted">About ₱{{ food.estimated_cost }} per serving</div>{% else %}<div class="text-muted">Price not set</div>{% endif %}
+          {% if food.allergens %}
+          <div class="small text-warning mt-2">Known allergens: {{ food.allergens|join:", " }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body text-secondary">No matching foods for this profile yet.</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if user.is_staff %}
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Manage food tips</h3>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead>
+          <tr><th>Food</th><th>Meal</th><th>Food type</th><th>Calories</th><th>Est. cost</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for food in all_foods %}
+          <tr>
+            <td>{{ food.name }}</td>
+            <td>{{ food.get_meal_type_display }}</td>
+            <td>{{ food.get_food_category_display }}</td>
+            <td>{{ food.calories }} kcal</td>
+            <td>{% if food.estimated_cost is not None %}₱{{ food.estimated_cost }}{% else %}Not set{% endif %}</td>
+            <td class="text-end">
+              <a href="{% url 'info:food_edit' food.id %}" class="btn btn-sm btn-outline-primary">Update</a>
+              <form method="post" action="{% url 'info:food_delete' food.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-secondary">No food tips have been added.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,166 @@
+{% extends "theme/base.html" %}
+{% block content %}
+<div class="container-xl">
+  <div class="page-header d-print-none mb-3">
+    <div class="page-pretitle">Recommendations</div>
+    <h2 class="page-title">Exercise Tips</h2>
+  </div>
+
+  {% include 'theme/messages.html' %}
+
+  <div class="btn-group mb-3" role="group" aria-label="Exercise list">
+    <a href="{% url 'info:exercises' %}?catalog=recommended"
+       class="btn {% if not catalog_mode %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      For your profile
+    </a>
+    <a href="{% url 'info:exercises' %}?catalog=all"
+       class="btn {% if catalog_mode %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      All exercises
+    </a>
+  </div>
+
+  {% if catalog_mode %}
+  <div class="alert alert-info">
+    Showing every exercise in the catalog, regardless of profile matching. Review the description and
+    choose activities appropriate for your health and ability.
+  </div>
+  {% endif %}
+
+  <p class="text-secondary">
+    {% if not catalog_mode %}
+    Showing activities for age <strong>{{ profile.age }}</strong> and
+    <strong class="text-capitalize">{{ profile.status_label }}</strong> BMI status.
+    {% else %}
+    Browse all exercises by location, intensity, and duration.
+    {% endif %}
+    Stop if you feel pain or dizziness, and ask a healthcare professional before starting a new routine.
+  </p>
+
+  {% if user.is_staff %}
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title">Import exercise tips</h3>
+    </div>
+    <form method="post" enctype="multipart/form-data" action="{% url 'info:exercise_import' %}">
+      {% csrf_token %}
+      <div class="card-body">
+        <label class="form-label" for="{{ import_form.file.id_for_label }}">{{ import_form.file.label }}</label>
+        {{ import_form.file }}
+        {% if import_form.file.errors %}<div class="text-danger">{{ import_form.file.errors.0 }}</div>{% endif %}
+        <div class="form-hint mt-2">
+          CSV columns: <code>name, description, intensity, duration_minutes, weight_status, min_age, max_age, conditions, avoid_conditions</code>;
+          optional <code>location</code> column accepts <code>indoor</code>, <code>outdoor</code>, or <code>both</code>.
+          Use comma-separated values or a JSON list for the last two columns. For example, intensity is
+          <code>low</code>, <code>moderate</code>, or <code>high</code>; conditions can include
+          <code>all</code>, <code>none</code>, <code>diabetes</code>, <code>hypertension</code>,
+          <code>asthma</code>, or <code>heart</code>. Imports are limited to 500 rows and 2 MB.
+        </div>
+      </div>
+      <div class="card-footer">
+        <button type="submit" class="btn btn-primary">Import exercise tips</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <form method="get" class="card card-body mb-3">
+    <input type="hidden" name="catalog" value="{% if catalog_mode %}all{% else %}recommended{% endif %}">
+    <div class="row g-3 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label" for="exercise_location_filter">Exercise location</label>
+        <select class="form-select" id="exercise_location_filter" name="location">
+          <option value="">All locations</option>
+          {% for value, label in exercise_location_choices %}
+          <option value="{{ value }}" {% if selected_location == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a href="{% url 'info:exercises' %}" class="btn btn-outline-secondary">Clear</a>
+      </div>
+    </div>
+  </form>
+
+  {% if user.is_staff and editing_exercise %}
+  <div class="card mb-3">
+    <div class="card-header">
+      <h3 class="card-title">Update exercise tip</h3>
+    </div>
+    <form method="post" action="{% url 'info:exercise_edit' editing_exercise.id %}">
+      {% csrf_token %}
+      <div class="card-body">
+        <div class="row g-3">
+          {% for field in exercise_form %}
+          <div class="{% if field.name == 'description' or field.name == 'conditions' or field.name == 'avoid_conditions' %}col-12{% else %}col-md-6{% endif %}">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<div class="text-danger">{{ field.errors.0 }}</div>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-footer">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+        <a href="{% url 'info:exercises' %}" class="btn btn-link">Cancel</a>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="row row-cards mb-3">
+    {% for exercise in exercises %}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="subheader">{{ exercise.get_intensity_display }} intensity · {{ exercise.get_location_display }}</div>
+          <h3 class="card-title">{{ exercise.name }}</h3>
+          <p class="text-secondary">{{ exercise.description }}</p>
+          <div class="text-muted">About {{ exercise.duration_minutes }} minutes</div>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body text-secondary">No matching exercises for this profile yet.</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if user.is_staff %}
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">Manage exercise tips</h3>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table">
+        <thead>
+          <tr><th>Exercise</th><th>Intensity</th><th>Location</th><th>Duration</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for exercise in all_exercises %}
+          <tr>
+            <td>{{ exercise.name }}</td>
+            <td>{{ exercise.get_intensity_display }}</td>
+            <td>{{ exercise.get_location_display }}</td>
+            <td>{{ exercise.duration_minutes }} minutes</td>
+            <td class="text-end">
+              <a href="{% url 'info:exercise_edit' exercise.id %}" class="btn btn-sm btn-outline-primary">Update</a>
+              <form method="post" action="{% url 'info:exercise_delete' exercise.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-secondary">No exercise tips have been added.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,8 +1,7 @@
 from django.shortcuts import get_object_or_404
-from apps.info.models import Info
 
-def scoped_infos(user):
-    return Info.objects.filter(user=user)
+from apps.info.models import HealthProfile
 
-def scoped_info(user, pk):
-    return get_object_or_404(scoped_infos(user), pk=pk)
+
+def scoped_profile(user):
+    return get_object_or_404(HealthProfile, user=user)

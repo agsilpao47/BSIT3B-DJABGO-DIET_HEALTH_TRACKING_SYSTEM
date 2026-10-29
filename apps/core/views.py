@@ -10,6 +10,14 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
+from apps.info.models import HealthProfile
+from apps.dieter.forms import HealthProfileForm
+from apps.dieter.services import (
+    exercises_for_profile,
+    recommended_foods_for_profile,
+    total_food_plan_cost,
+)
+
 User = get_user_model()
 
 MAX_FAILED_ATTEMPTS = 5
@@ -140,7 +148,41 @@ def logout_view(request):
 
 @login_required(login_url='login')
 def home(request):
-    return render(request, 'home.html')
+    try:
+        profile = request.user.health_profile
+    except HealthProfile.DoesNotExist:
+        profile = None
+
+    if request.method == 'POST':
+        form = HealthProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            saved_profile = form.save(commit=False)
+            saved_profile.user = request.user
+            saved_profile.save()
+            messages.success(request, 'Your body details were updated.')
+            return redirect('dashboard')
+    else:
+        form = HealthProfileForm(instance=profile)
+
+    recommended_foods = []
+    recommended_exercises = []
+    food_plan_total = 0
+    if profile:
+        recommended_foods = recommended_foods_for_profile(profile)
+        if profile.daily_food_budget is None:
+            recommended_foods = recommended_foods[:4]
+        else:
+            food_plan_total = total_food_plan_cost(recommended_foods)
+        recommended_exercises = exercises_for_profile(profile)[:4]
+
+    return render(request, 'home.html', {
+        'profile': profile,
+        'form': form,
+        'recommended_foods': recommended_foods,
+        'recommended_exercises': recommended_exercises,
+        'food_plan_total': food_plan_total,
+        'food_plan_daily_budget': profile.daily_food_budget_limit if profile else None,
+    })
 
 
 @require_http_methods(['GET', 'POST'])

@@ -1,26 +1,402 @@
 {% extends "theme/base.html" %}
 {% block content %}
 <div class="container-xl">
-  <div class="page-header d-print-none" aria-label="Page header">
-    <div class="container-xl">
-      <div class="row align-items-center">
-        <div class="col">
-          <div class="page-pretitle">Overview</div>
-          <div class="d-flex align-items-center gap-3 flex-wrap d-none d-md-flex">
-            <h2 class="page-title mb-0">Dashboard</h2>
+  <div class="page-header d-print-none mb-3">
+    <div class="page-pretitle">Health</div>
+    <h2 class="page-title">My Profile</h2>
+    <div class="text-secondary">Keep your body details current to get more relevant food and exercise tips.</div>
+    {% if profile %}
+    <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#editProfileModal">
+      <i class="fas fa-pen-to-square me-1" aria-hidden="true"></i> Edit body details
+    </button>
+    {% endif %}
+  </div>
+
+  {% include 'theme/messages.html' %}
+
+  <div class="row row-cards">
+    <div class="col-lg-8">
+      {% if profile %}
+      <div class="card mb-3">
+        <div class="card-header">
+          <h3 class="card-title">BMI status</h3>
+        </div>
+        <div class="card-body px-4 px-md-5">
+          <div class="position-relative mt-5 mb-4" role="img"
+               aria-label="BMI {{ profile.bmi }}: {{ profile.status_label }}">
+            <div class="position-absolute top-0 translate-middle-x text-center"
+                 style="left: {{ profile.bmi_indicator_percent }}%; margin-top: -2.25rem;">
+              <span class="fw-bold">{{ profile.bmi }}</span>
+            </div>
+            <div class="d-flex overflow-hidden rounded-pill" style="height: 14px;">
+              <span class="bg-primary" style="width: 28.333%;"></span>
+              <span class="bg-success" style="width: 21.667%;"></span>
+              <span class="bg-warning" style="width: 16.667%;"></span>
+              <span class="bg-danger" style="width: 33.333%;"></span>
+            </div>
+            <div class="position-absolute top-0 translate-middle-x"
+                 style="left: {{ profile.bmi_indicator_percent }}%; margin-top: -1.35rem;">
+              <span class="d-block mx-auto bg-dark rounded-pill" style="width: 2px; height: 2.4rem;"></span>
+              <span class="d-block mx-auto bg-white border border-dark rounded-circle"
+                    style="width: 10px; height: 10px; margin-top: -2px;"></span>
+            </div>
           </div>
-          <h2 class="page-title mb-0 d-md-none">Dashboard</h2>
+          <div class="position-relative small text-secondary mb-4" style="height: 1.25rem;">
+            <span class="position-absolute start-0">10</span>
+            <span class="position-absolute translate-middle-x" style="left: 28.333%;">18.5</span>
+            <span class="position-absolute translate-middle-x" style="left: 50%;">25</span>
+            <span class="position-absolute translate-middle-x" style="left: 66.667%;">30</span>
+            <span class="position-absolute end-0">40</span>
+          </div>
+          <div class="row text-center border-top pt-3">
+            <div class="col">
+              <div class="text-secondary">BMI score</div>
+              <strong>{{ profile.bmi }}</strong>
+            </div>
+            <div class="col">
+              <div class="text-secondary">Weight status</div>
+              <strong>{{ profile.status_label }}</strong>
+            </div>
+            <div class="col">
+              <div class="text-secondary">Typical adult range</div>
+              <strong>18.5–24.9</strong>
+            </div>
+          </div>
+          {% if profile.age < 20 %}
+          <p class="text-secondary small border-top pt-3 mb-0">
+            Adult BMI categories are not used for people under 20. A clinician can assess BMI-for-age.
+          </p>
+          {% else %}
+          <p class="text-secondary small border-top pt-3 mb-0">
+            BMI is a screening measure, not a diagnosis. Ask a healthcare professional for personal advice.
+          </p>
+          {% endif %}
+          <div class="border-top mt-3 pt-3">
+            <h4 class="h4 mb-2">Health status</h4>
+            {% if profile.health_status_labels or profile.health_status_details or profile.injury_details or profile.food_allergy_details %}
+              {% if profile.health_status_labels %}
+              <ul class="mb-2">
+                {% for status in profile.health_status_labels %}
+                <li>{{ status }}</li>
+                {% endfor %}
+              </ul>
+              {% endif %}
+              {% if profile.health_status_details %}<div class="small text-secondary mb-1">Other health details: {{ profile.health_status_details|linebreaksbr }}</div>{% endif %}
+              {% if profile.injury_details %}<div class="small text-secondary mb-1">Injury/bone details: {{ profile.injury_details|linebreaksbr }}</div>{% endif %}
+              {% if profile.food_allergy_details %}<div class="small text-secondary">Food allergies: {{ profile.food_allergy_details|linebreaksbr }}</div>{% endif %}
+            {% else %}
+            <p class="text-secondary mb-0">No info about your health status.</p>
+            {% endif %}
+          </div>
+          <div class="border-top mt-3 pt-3">
+            <h4 class="h4 mb-2">Food budget</h4>
+            {% if profile.daily_food_budget %}
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-secondary">{{ profile.get_food_budget_period_display }} budget</span>
+              <strong>₱{{ profile.daily_food_budget }}</strong>
+            </div>
+            {% else %}
+            <p class="text-secondary mb-0">No food budget set.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-info">
+        <h3 class="alert-title">Welcome! Add your body details to get started.</h3>
+        <div>Save your details to see your BMI status and personalized food and exercise tips.</div>
+      </div>
+      {% endif %}
+
+      {% if profile %}
+      <div class="modal fade" id="editProfileModal" tabindex="-1" aria-labelledby="editProfileModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <form method="post" class="modal-content">
+      {% else %}
+      <form method="post" class="card">
+      {% endif %}
+        {% csrf_token %}
+        {% if profile %}
+        <div class="modal-header">
+          <div>
+            <h3 class="modal-title" id="editProfileModalLabel">Edit body details</h3>
+            <div class="text-secondary small">Changes update your profile and recommendations.</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        {% else %}
+        <div class="card-header">
+          <h3 class="card-title">Body details</h3>
+        </div>
+        {% endif %}
+        <div class="{% if profile %}modal-body{% else %}card-body{% endif %}">
+          <p class="text-secondary">
+            Your age, height, and weight are used to estimate BMI and personalize suggestions.
+            Share only health details that are relevant to you.
+          </p>
+
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="{{ form.age.id_for_label }}">{{ form.age.label }}</label>
+              {{ form.age }}
+              {% if form.age.errors %}<div class="text-danger">{{ form.age.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="{{ form.height_cm.id_for_label }}">{{ form.height_cm.label }}</label>
+              {{ form.height_cm }}
+              {% if form.height_cm.errors %}<div class="text-danger">{{ form.height_cm.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="{{ form.weight_kg.id_for_label }}">{{ form.weight_kg.label }}</label>
+              {{ form.weight_kg }}
+              {% if form.weight_kg.errors %}<div class="text-danger">{{ form.weight_kg.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <h4 class="mb-3">Health status</h4>
+          {% for section in form.health_status_sections %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ section.parent.id_for_label }}">{{ section.parent.label }}</label>
+            {{ section.parent }}
+            {% if section.parent.errors %}<div class="text-danger">{{ section.parent.errors.0 }}</div>{% endif %}
+            <div class="mt-2" data-condition-parent="{{ section.parent.id_for_label }}"
+                 data-condition-value="{{ section.parent_value }}" hidden>
+              <label class="form-label" for="{{ section.child.id_for_label }}">{{ section.child.label }}</label>
+              {{ section.child }}
+              {% if section.child.errors %}<div class="text-danger">{{ section.child.errors.0 }}</div>{% endif %}
+              {% if section.child.name == 'heart_condition_status' %}
+              <div class="mt-2" data-condition-parent="{{ section.child.id_for_label }}"
+                   data-condition-value="other_or_unsure" hidden>
+                <label class="form-label" for="{{ form.heart_condition_details.id_for_label }}">{{ form.heart_condition_details.label }}</label>
+                {{ form.heart_condition_details }}
+                {% if form.heart_condition_details.errors %}<div class="text-danger">{{ form.heart_condition_details.errors.0 }}</div>{% endif %}
+              </div>
+              {% elif section.child.name == 'other_allergy_types' %}
+              <div class="mt-2" data-condition-parent="{{ section.child.id_for_label }}"
+                   data-condition-value="other" hidden>
+                <label class="form-label" for="{{ form.other_allergy_details.id_for_label }}">{{ form.other_allergy_details.label }}</label>
+                {{ form.other_allergy_details }}
+                {% if form.other_allergy_details.errors %}<div class="text-danger">{{ form.other_allergy_details.errors.0 }}</div>{% endif %}
+              </div>
+              {% endif %}
+            </div>
+
+          </div>
+          {% endfor %}
+
+          <div class="row g-3 mt-2">
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="{{ form.daily_food_budget.id_for_label }}">{{ form.daily_food_budget.label }}</label>
+              {{ form.daily_food_budget }}
+              {% if form.daily_food_budget.errors %}<div class="text-danger">{{ form.daily_food_budget.errors.0 }}</div>{% endif %}
+              <div class="form-hint">Optional. Enter the amount that matches your selected budget period.</div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="{{ form.food_budget_period.id_for_label }}">{{ form.food_budget_period.label }}</label>
+              {{ form.food_budget_period }}
+              {% if form.food_budget_period.errors %}<div class="text-danger">{{ form.food_budget_period.errors.0 }}</div>{% endif %}
+              <div class="form-hint">Monthly budgets are divided across 30 days when selecting recommendations.</div>
+            </div>
+          </div>
+
+          <div class="row g-3 mt-1">
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="{{ form.food_preference.id_for_label }}">{{ form.food_preference.label }}</label>
+              {{ form.food_preference }}
+              {% if form.food_preference.errors %}<div class="text-danger">{{ form.food_preference.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="{{ form.exercise_intensity.id_for_label }}">{{ form.exercise_intensity.label }}</label>
+              {{ form.exercise_intensity }}
+              {% if form.exercise_intensity.errors %}<div class="text-danger">{{ form.exercise_intensity.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+          <p class="form-hint mb-3">
+            Leave a question blank if you prefer not to answer. For multiple-choice lists, use Ctrl
+            (Windows) or Command (Mac) to select more than one option.
+          </p>
+        </div>
+        <div class="{% if profile %}modal-footer{% else %}card-footer{% endif %}">
+          {% if profile %}
+          <button type="button" class="btn btn-link" data-bs-dismiss="modal">Cancel</button>
+          {% endif %}
+          <button type="submit" class="btn btn-primary">
+            {% if profile %}Update body details{% else %}Save body details{% endif %}
+          </button>
+        </div>
+      {% if profile %}
+          </form>
+        </div>
+      </div>
+      {% else %}
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <h3 class="card-title">Body model</h3>
+        </div>
+        <div class="card-body">
+          {% if profile %}
+          <div class="text-center"
+               role="img"
+               aria-label="Illustrative body model for BMI {{ profile.bmi }}, classified as {{ profile.status_label }}.">
+            <svg viewBox="0 0 240 200" class="w-100" style="height: 210px; max-width: 240px;"
+                 aria-hidden="true" focusable="false">
+              <g fill="{% if profile.bmi < 18.5 %}#206bc4{% elif profile.bmi < 25 %}#2fb344{% elif profile.bmi < 30 %}#f59f00{% else %}#d63939{% endif %}">
+                <circle cx="120" cy="27" r="12"></circle>
+                {% if profile.bmi < 18.5 %}
+                <path d="M108 45 Q120 42 132 45 L141 53 L150 82 L158 117 L152 120 L140 91 L136 77 L136 112 L139 143 L137 181 L124 181 L120 146 L116 181 L103 181 L101 143 L104 112 L104 77 L100 91 L88 120 L82 117 L90 82 L99 53 Z"></path>
+                {% elif profile.bmi < 25 %}
+                <path d="M104 45 Q120 41 136 45 L146 53 L155 82 L164 117 L157 121 L144 91 L140 77 L141 112 L145 143 L142 181 L126 181 L120 146 L114 181 L98 181 L95 143 L99 112 L100 77 L96 91 L83 121 L76 117 L85 82 L94 53 Z"></path>
+                {% elif profile.bmi < 30 %}
+                <path d="M100 45 Q120 41 140 45 L151 53 L160 82 L169 117 L162 121 L149 91 L145 77 L148 107 Q158 119 151 139 L148 145 L145 181 L128 181 L120 148 L112 181 L95 181 L92 145 L89 139 Q82 119 92 107 L95 77 L91 91 L78 121 L71 117 L80 82 L89 53 Z"></path>
+                {% else %}
+                <path d="M96 45 Q120 40 144 45 L157 53 L166 82 L176 117 L168 122 L154 91 L150 77 L155 104 Q172 117 163 141 L157 147 L153 181 L132 181 L120 150 L108 181 L87 181 L83 147 L77 141 Q68 117 85 104 L90 77 L86 91 L72 122 L64 117 L74 82 L83 53 Z"></path>
+                {% endif %}
+              </g>
+            </svg>
+          </div>
+          <div class="position-relative mt-2 mb-4" role="img"
+               aria-label="BMI {{ profile.bmi }}: {{ profile.status_label }}">
+            <div class="d-flex overflow-hidden rounded-pill" style="height: 10px;">
+              <span class="bg-primary" style="width: 28.333%;"></span>
+              <span class="bg-success" style="width: 21.667%;"></span>
+              <span class="bg-warning" style="width: 16.667%;"></span>
+              <span class="bg-danger" style="width: 33.333%;"></span>
+            </div>
+            <span class="position-absolute top-0 translate-middle-x rounded-circle bg-white border border-dark"
+                  style="left: {{ profile.bmi_indicator_percent }}%; width: 12px; height: 12px; margin-top: -1px;"></span>
+            <div class="position-relative text-secondary small mt-2" style="height: 1rem;">
+              <span class="position-absolute start-0">10</span>
+              <span class="position-absolute translate-middle-x" style="left: 28.333%;">18.5</span>
+              <span class="position-absolute translate-middle-x" style="left: 50%;">25</span>
+              <span class="position-absolute translate-middle-x" style="left: 66.667%;">30</span>
+              <span class="position-absolute end-0">40</span>
+            </div>
+          </div>
+          <div class="row text-center border-top pt-3">
+            <div class="col-4">
+              <div class="text-secondary small">BMI</div>
+              <strong>{{ profile.bmi }}</strong>
+            </div>
+            <div class="col-4">
+              <div class="text-secondary small">Height</div>
+              <strong>{{ profile.height_cm }} cm</strong>
+            </div>
+            <div class="col-4">
+              <div class="text-secondary small">Weight</div>
+              <strong>{{ profile.weight_kg }} kg</strong>
+            </div>
+          </div>
+          <div class="text-center mt-2">
+            <span class="text-secondary">BMI category:</span>
+            <strong>{{ profile.status_label }}</strong>
+          </div>
+          <p class="text-secondary small mt-3 mb-0">
+            Illustrative body shape based on BMI category only; it does not represent an exact body measurement or diagnose health.
+          </p>
+          {% else %}
+          <p class="text-secondary mb-0">Save your height and weight to see your body model.</p>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
-  <br>
-
-  <div class="card">
-    <div class="card-body text-muted">
-      Dashboard
-    </div>
-  </div>
-
+      {% if profile %}
+      <div class="row row-cards mt-3">
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header">
+              <h3 class="card-title">Recommended food</h3>
+              <div class="card-actions"><a href="{% url 'info:foods' %}" class="btn btn-sm btn-outline-primary">All food tips</a></div>
+            </div>
+            {% if profile.daily_food_budget %}
+            <div class="card-body pb-0">
+              <p class="text-secondary small">
+                {{ profile.get_food_budget_period_display }} food budget: ₱{{ profile.daily_food_budget }}
+                {% if profile.food_budget_period == 'monthly' %} (about ₱{{ food_plan_daily_budget|floatformat:2 }} per day){% endif %}
+                {% if recommended_foods %} · Selected estimated daily total: ₱{{ food_plan_total }}{% endif %}
+              </p>
+            </div>
+            {% endif %}
+            <div class="list-group list-group-flush">
+              {% for food in recommended_foods %}
+              <div class="list-group-item">
+                <div class="d-flex justify-content-between gap-3">
+                  <div>
+                    <strong>{{ food.name }}</strong>
+                    <div class="text-secondary small">{{ food.get_meal_type_display }} · {{ food.get_food_category_display }} · {{ food.calories }} kcal</div>
+                    <div class="text-secondary small">{{ food.description }}</div>
+                  </div>
+                  {% if food.estimated_cost is not None %}<span class="text-nowrap">₱{{ food.estimated_cost }}</span>{% endif %}
+                </div>
+              </div>
+              {% empty %}
+              <div class="list-group-item text-secondary">
+                {% if profile.daily_food_budget %}No priced, matching foods fit this budget yet. Ask an administrator to add prices to food tips.{% else %}No matching food tips are available yet.{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card h-100">
+            <div class="card-header">
+              <h3 class="card-title">Recommended exercise</h3>
+              <div class="card-actions"><a href="{% url 'info:exercises' %}" class="btn btn-sm btn-outline-primary">All exercise tips</a></div>
+            </div>
+            <div class="list-group list-group-flush">
+              {% for exercise in recommended_exercises %}
+              <div class="list-group-item">
+                <strong>{{ exercise.name }}</strong>
+                <div class="text-secondary small">{{ exercise.get_intensity_display }} intensity · {{ exercise.get_location_display }} · {{ exercise.duration_minutes }} minutes</div>
+                <div class="text-secondary small">{{ exercise.description }}</div>
+              </div>
+              {% empty %}
+              <div class="list-group-item text-secondary">No matching exercise tips are available yet.</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 </div>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const conditionalFields = document.querySelectorAll('[data-condition-parent]');
+
+    conditionalFields.forEach(function (container) {
+      const parent = document.getElementById(container.dataset.conditionParent);
+      if (!parent) return;
+
+      const child = container.querySelector('select, textarea, input');
+      const updateVisibility = function () {
+        const shouldShow = parent.multiple
+          ? Array.from(parent.selectedOptions).some(function (option) {
+            return option.value === container.dataset.conditionValue;
+          })
+          : parent.value === container.dataset.conditionValue;
+        container.hidden = !shouldShow;
+        if (!shouldShow && child) {
+          if (child.tagName === 'SELECT') {
+            Array.from(child.options).forEach(function (option) {
+              option.selected = false;
+            });
+          } else {
+            child.value = '';
+          }
+        }
+      };
+
+      parent.addEventListener('change', updateVisibility);
+      updateVisibility();
+    });
+  });
+</script>
 {% endblock %}
