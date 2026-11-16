@@ -1,5 +1,6 @@
 """BMI status and simple food/exercise matching."""
 
+from datetime import date
 from decimal import Decimal
 
 from apps.info.models import ExerciseItem, FoodItem, WeightStatus
@@ -75,6 +76,90 @@ def exercises_for_profile(profile):
         if _matches_condition(item.conditions, profile.recommendation_conditions):
             results.append(item)
     return results
+
+
+def daily_recommendation_schedule(profile, target_date):
+    """Build a stable, date-varying daily schedule from profile-safe recommendations."""
+    meal_slots = (
+        ('breakfast', '8:00 AM'),
+        ('lunch', '12:30 PM'),
+        ('snack', '3:30 PM'),
+        ('dinner', '7:00 PM'),
+    )
+    foods = foods_for_profile(profile)
+    budget_by_type = None
+    if profile.daily_food_budget is not None:
+        budget_by_type = {
+            food.meal_type: food
+            for food in budget_food_plan(profile)
+        }
+
+    foods_by_type = {}
+    for food in foods:
+        if budget_by_type is not None and (
+            food.meal_type not in budget_by_type or food.estimated_cost is None
+        ):
+            continue
+        foods_by_type.setdefault(food.meal_type, []).append(food)
+    for options in foods_by_type.values():
+        options.sort(key=lambda food: (food.name.casefold(), food.pk))
+
+    meal_types = [
+        meal_type for meal_type, _ in meal_slots
+        if meal_type in foods_by_type
+        and (budget_by_type is None or meal_type in budget_by_type)
+    ]
+    cheapest_by_type = {
+        meal_type: min(
+            foods_by_type[meal_type],
+            key=lambda food: (food.estimated_cost, food.name.casefold(), food.pk),
+        )
+        for meal_type in meal_types
+    } if budget_by_type is not None else {}
+
+    meals = []
+    spent = Decimal('0.00')
+    day_number = target_date.toordinal() + profile.pk
+    for slot_index, (meal_type, time) in enumerate(meal_slots):
+        options = foods_by_type.get(meal_type, [])
+        if not options:
+            continue
+        start = (day_number + slot_index) % len(options)
+        rotated_options = options[start:] + options[:start]
+        if budget_by_type is not None:
+            remaining_types = meal_types[meal_types.index(meal_type) + 1:]
+            minimum_remaining = sum(
+                (cheapest_by_type[next_type].estimated_cost for next_type in remaining_types),
+                start=Decimal('0.00'),
+            )
+            food = next(
+                (
+                    candidate for candidate in rotated_options
+                    if spent + candidate.estimated_cost + minimum_remaining
+                    <= profile.daily_food_budget_limit
+                ),
+                cheapest_by_type[meal_type],
+            )
+            spent += food.estimated_cost
+        else:
+            food = rotated_options[0]
+        meals.append({
+            'meal_type': meal_type,
+            'time': time,
+            'food': food,
+        })
+
+    exercises = sorted(exercises_for_profile(profile), key=lambda exercise: exercise.pk)
+    exercise = exercises[day_number % len(exercises)] if exercises else None
+    return {
+        'date': target_date,
+        'meals': meals,
+        'exercise': {
+            'time': '7:00 AM' if day_number % 2 == 0 else '5:00 PM',
+            'item': exercise,
+        } if exercise else None,
+        'food_total': spent if budget_by_type is not None else None,
+    }
 
 
 def _matches_condition(conditions, user_condition):

@@ -165,10 +165,14 @@ class HealthProfile(models.Model):
         labels = dict(HealthStatus.choices)
         answers = self.health_status_answers or {}
         detailed_status_fields = {
+            HealthStatus.ALCOHOL: 'alcohol_frequency',
             HealthStatus.SMOKING: 'smoking_frequency',
+            HealthStatus.DIABETES: 'diabetes_status',
             HealthStatus.HYPERTENSION: 'blood_pressure_status',
+            HealthStatus.ASTHMA: 'asthma_status',
             HealthStatus.HEART: 'heart_condition_status',
             HealthStatus.ALLERGIES: 'other_allergy_types',
+            HealthStatus.SLEEP_DEPRIVATION: 'sleep_deprivation_frequency',
             HealthStatus.FOOD_ALLERGY: 'food_allergy_options',
         }
         status_labels = [

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -17,7 +18,7 @@ from .models import (
     MealType,
     WeightStatus,
 )
-from .services import budget_food_plan, foods_for_profile
+from .services import budget_food_plan, daily_recommendation_schedule, foods_for_profile
 
 
 class DietRecommendationTests(TestCase):
@@ -46,7 +47,7 @@ class DietRecommendationTests(TestCase):
     def test_seed_command_loads_expanded_catalog_with_reasonable_prices(self):
         call_command('seed_health', verbosity=0)
 
-        self.assertEqual(FoodItem.objects.count(), 41)
+        self.assertEqual(FoodItem.objects.count(), 51)
         self.assertEqual(ExerciseItem.objects.count(), 38)
         self.assertEqual(
             FoodItem.objects.get(name='Banana and boiled egg').estimated_cost,
@@ -62,6 +63,30 @@ class DietRecommendationTests(TestCase):
         self.assertTrue(
             ExerciseItem.objects.filter(location=ExerciseLocation.OUTDOOR).exists()
         )
+
+    def test_seeded_plant_based_foods_are_available_for_vegetarian_profiles(self):
+        call_command('seed_health', verbosity=0)
+        self.profile.health_status_answers = {'food_preference': 'vegetarian'}
+
+        foods = foods_for_profile(self.profile)
+        vegetarian_foods = [
+            food for food in foods
+            if food.name in {
+                'Banana cinnamon overnight oats',
+                'Tofu and spinach breakfast bowl',
+                'Avocado tomato toast',
+                'Chickpea and cucumber rice bowl',
+                'Tofu vegetable rice stir-fry',
+                'Black bean and sweet potato plate',
+                'Lentil vegetable soup',
+                'Vegetable and tofu rice noodles',
+                'Fresh papaya and banana snack',
+                'Baked potato with tomato salsa',
+            }
+        ]
+
+        self.assertEqual(len(vegetarian_foods), 10)
+        self.assertFalse(any('chicken' in food.name.casefold() for food in foods))
 
     def test_adult_recommendations_match_bmi_and_condition(self):
         recommended = self.create_food('Matching meal', WeightStatus.OVERWEIGHT, ['diabetes'])
@@ -128,6 +153,84 @@ class DietRecommendationTests(TestCase):
 
         self.assertEqual(foods_for_profile(self.profile), [safe_for_both])
 
+    def test_daily_schedule_rotates_safe_food_and_exercise_recommendations(self):
+        first_food = FoodItem.objects.create(
+            name='First safe lunch',
+            description='Safe meal.',
+            meal_type=MealType.LUNCH,
+            calories=400,
+            weight_status=WeightStatus.OVERWEIGHT,
+            conditions=['diabetes'],
+            allergens=['sesame'],
+        )
+        second_food = FoodItem.objects.create(
+            name='Second safe lunch',
+            description='Another safe meal.',
+            meal_type=MealType.LUNCH,
+            calories=420,
+            weight_status=WeightStatus.OVERWEIGHT,
+            conditions=['diabetes'],
+            allergens=['sesame'],
+        )
+        FoodItem.objects.create(
+            name='Peanut lunch',
+            description='Unsafe meal.',
+            meal_type=MealType.LUNCH,
+            calories=400,
+            weight_status=WeightStatus.OVERWEIGHT,
+            conditions=['diabetes'],
+            allergens=['peanuts'],
+        )
+        self.profile.health_status_answers = {'food_allergy_options': ['peanuts']}
+        first_exercise = ExerciseItem.objects.create(
+            name='First safe exercise',
+            description='An easy walk.',
+            intensity='low',
+            duration_minutes=20,
+            weight_status=WeightStatus.OVERWEIGHT,
+            min_age=10,
+            max_age=100,
+            conditions=['diabetes'],
+        )
+        second_exercise = ExerciseItem.objects.create(
+            name='Second safe exercise',
+            description='A gentle stretch.',
+            intensity='low',
+            duration_minutes=15,
+            weight_status=WeightStatus.OVERWEIGHT,
+            min_age=10,
+            max_age=100,
+            conditions=['diabetes'],
+        )
+        target_date = date(2026, 11, 8)
+
+        today = daily_recommendation_schedule(self.profile, target_date)
+        tomorrow = daily_recommendation_schedule(self.profile, target_date + timedelta(days=1))
+
+        self.assertIn(today['meals'][0]['food'], [first_food, second_food])
+        self.assertIn(tomorrow['meals'][0]['food'], [first_food, second_food])
+        self.assertNotEqual(today['meals'][0]['food'], tomorrow['meals'][0]['food'])
+        self.assertNotEqual(today['exercise']['item'], tomorrow['exercise']['item'])
+        self.assertNotEqual(today['exercise']['time'], tomorrow['exercise']['time'])
+
+    def test_budgeted_daily_schedule_stays_within_daily_allowance(self):
+        for name, price in [('Affordable one', '35.00'), ('Affordable two', '40.00')]:
+            FoodItem.objects.create(
+                name=name,
+                description='Budget-safe meal.',
+                meal_type=MealType.BREAKFAST,
+                calories=300,
+                estimated_cost=Decimal(price),
+                weight_status=WeightStatus.OVERWEIGHT,
+                conditions=['diabetes'],
+            )
+        self.profile.daily_food_budget = Decimal('50.00')
+
+        schedule = daily_recommendation_schedule(self.profile, date(2026, 11, 8))
+
+        self.assertEqual(len(schedule['meals']), 1)
+        self.assertLessEqual(schedule['food_total'], self.profile.daily_food_budget_limit)
+
 class ProfileAndTipsViewTests(TestCase):
     def setUp(self):
         FoodItem.objects.all().delete()
@@ -175,6 +278,14 @@ class ProfileAndTipsViewTests(TestCase):
         self.assertContains(response, 'Please specify the other allergy')
         self.assertContains(response, 'data-condition-value="other_or_unsure" hidden')
         self.assertContains(response, 'data-condition-value="other" hidden')
+        self.assertEqual(
+            response.content.decode().count(
+                'Use Ctrl (Windows) or Command (Mac) to select more than one option.'
+            ),
+            2,
+        )
+        self.assertContains(response, 'Leave a question blank if you prefer not to answer.')
+        self.assertNotContains(response, 'For multiple-choice lists')
         self.assertNotContains(response, 'editProfileModal')
         self.assertContains(response, 'Save body details')
         self.assertNotContains(response, 'Diet Tracker')
@@ -238,10 +349,14 @@ class ProfileAndTipsViewTests(TestCase):
         response = self.client.get(reverse('dashboard'))
 
         self.assertContains(response, 'Recommended food')
+        self.assertContains(response, 'Your plan for today and tomorrow')
+        self.assertContains(response, 'Today')
+        self.assertContains(response, 'Tomorrow')
         self.assertContains(response, 'Budget breakfast')
         self.assertContains(response, '₱80.00')
         self.assertContains(response, 'Recommended exercise')
         self.assertContains(response, 'Profile walk')
+        self.assertContains(response, '8:00 AM · Breakfast')
 
     def test_dashboard_saves_status_frequency_and_choice_details(self):
         response = self.client.post(reverse('dashboard'), {
@@ -252,6 +367,10 @@ class ProfileAndTipsViewTests(TestCase):
             'smoking_frequency': 'six_to_ten_daily',
             'has_diabetes': 'yes',
             'diabetes_status': 'type_2',
+            'has_asthma': 'yes',
+            'asthma_status': 'mild_persistent',
+            'sleep_deprived': 'yes',
+            'sleep_deprivation_frequency': 'one_to_two_weekly',
             'has_heart_condition': 'yes',
             'heart_condition_status': 'other_or_unsure',
             'heart_condition_details': 'Cardiomyopathy',
@@ -270,8 +389,10 @@ class ProfileAndTipsViewTests(TestCase):
             HealthStatus.ALCOHOL,
             HealthStatus.SMOKING,
             HealthStatus.DIABETES,
+            HealthStatus.ASTHMA,
             HealthStatus.HEART,
             HealthStatus.ALLERGIES,
+            HealthStatus.SLEEP_DEPRIVATION,
             HealthStatus.INJURY,
             HealthStatus.FOOD_ALLERGY,
         ])
@@ -280,13 +401,21 @@ class ProfileAndTipsViewTests(TestCase):
         self.assertEqual(profile.health_status_answers['heart_condition_details'], 'Cardiomyopathy')
         self.assertEqual(profile.health_status_answers['other_allergy_details'], 'Dust mites')
         status_labels = profile.health_status_labels
+        self.assertNotIn('I drink alcohol', status_labels)
         self.assertNotIn('I smoke', status_labels)
+        self.assertNotIn('Diabetes', status_labels)
         self.assertNotIn('High blood pressure', status_labels)
+        self.assertNotIn('Asthma', status_labels)
+        self.assertNotIn('Sleep deprivation', status_labels)
         self.assertNotIn('Heart condition', status_labels)
         self.assertNotIn('Other allergies', status_labels)
         self.assertNotIn('Food allergy', status_labels)
         self.assertIn('Injury or condition affecting bones or joints', status_labels)
+        self.assertIn('Alcohol: 2–4 times a month', status_labels)
         self.assertIn('Smoking: 6–10 times a day', status_labels)
+        self.assertIn('Diabetes: Type 2', status_labels)
+        self.assertIn('Asthma: Mild persistent', status_labels)
+        self.assertIn('Sleep deprivation: 1–2 nights a week', status_labels)
         self.assertIn('Food allergies: Peanuts, Milk', status_labels)
         self.assertAlmostEqual(profile.bmi, 20.3, places=1)
         response = self.client.get(reverse('dashboard'))

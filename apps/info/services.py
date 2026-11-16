@@ -1,5 +1,6 @@
 from apps.dieter.services import (
     budget_food_plan,
+    daily_recommendation_schedule,
     exercises_for_profile,
     foods_for_profile,
     recommended_foods_for_profile,
@@ -8,6 +9,7 @@ from apps.dieter.services import (
 
 __all__ = [
     'budget_food_plan',
+    'daily_recommendation_schedule',
     'exercises_for_profile',
     'foods_for_profile',
     'recommended_foods_for_profile',

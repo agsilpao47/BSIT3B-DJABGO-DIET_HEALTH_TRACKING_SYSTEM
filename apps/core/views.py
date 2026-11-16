@@ -13,6 +13,7 @@ from django.views.decorators.http import require_http_methods
 from apps.info.models import HealthProfile
 from apps.dieter.forms import HealthProfileForm
 from apps.dieter.services import (
+    daily_recommendation_schedule,
     exercises_for_profile,
     recommended_foods_for_profile,
     total_food_plan_cost,
@@ -166,6 +167,7 @@ def home(request):
 
     recommended_foods = []
     recommended_exercises = []
+    daily_schedules = []
     food_plan_total = 0
     if profile:
         recommended_foods = recommended_foods_for_profile(profile)
@@ -174,12 +176,24 @@ def home(request):
         else:
             food_plan_total = total_food_plan_cost(recommended_foods)
         recommended_exercises = exercises_for_profile(profile)[:4]
+        today = timezone.localdate()
+        daily_schedules = [
+            {
+                'label': label,
+                **daily_recommendation_schedule(profile, target_date),
+            }
+            for label, target_date in (
+                ('Today', today),
+                ('Tomorrow', today + timedelta(days=1)),
+            )
+        ]
 
     return render(request, 'home.html', {
         'profile': profile,
         'form': form,
         'recommended_foods': recommended_foods,
         'recommended_exercises': recommended_exercises,
+        'daily_schedules': daily_schedules,
         'food_plan_total': food_plan_total,
         'food_plan_daily_budget': profile.daily_food_budget_limit if profile else None,
     })

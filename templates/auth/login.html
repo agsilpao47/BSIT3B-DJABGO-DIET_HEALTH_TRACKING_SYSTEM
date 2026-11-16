@@ -16,20 +16,25 @@
   <link href="{% static 'css/tabler-vendors.css' %}" rel="stylesheet" />
   <link href="{% static 'css/tabler-marketing.css' %}" rel="stylesheet" />
   <link href="{% static 'css/tabler-themes.css' %}" rel="stylesheet" />
+  <link href="{% static 'css/site-overhaul.css' %}" rel="stylesheet" />
+  <link href="{% static 'css/auth-overhaul.css' %}" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 
-<body>
+<body class="auth-page">
   <script src="{% static 'js/tabler-theme.js' %}"></script>
   <div class="page page-center">
     <div class="container container-tight py-4">
 
+     <div class="text-center">
+       <div class="auth-brand">
+         <span class="auth-brand-mark"><i class="fas fa-heart-pulse" aria-hidden="true"></i></span>
+         <span>DietTrack<span class="auth-brand-copy">Small steps. Healthier days.</span></span>
+       </div>
+     </div>
      <div class="card card-md">
       <div class="card-body">
 
-        <center class="mt-n4">
-        <i class='fas fa-heart-pulse' style='font-size:40px'></i>
-        </center>
         <h2 class="h3 text-center mb-4">Sign in to DietTrack</h2>
 
         <form method="post">

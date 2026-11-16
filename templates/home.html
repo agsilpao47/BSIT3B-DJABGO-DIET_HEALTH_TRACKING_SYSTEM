@@ -164,6 +164,9 @@
               <label class="form-label" for="{{ section.child.id_for_label }}">{{ section.child.label }}</label>
               {{ section.child }}
               {% if section.child.errors %}<div class="text-danger">{{ section.child.errors.0 }}</div>{% endif %}
+              {% if section.child.name == 'other_allergy_types' or section.child.name == 'food_allergy_options' %}
+              <div class="form-hint">Use Ctrl (Windows) or Command (Mac) to select more than one option.</div>
+              {% endif %}
               {% if section.child.name == 'heart_condition_status' %}
               <div class="mt-2" data-condition-parent="{{ section.child.id_for_label }}"
                    data-condition-value="other_or_unsure" hidden>
@@ -212,8 +215,7 @@
             </div>
           </div>
           <p class="form-hint mb-3">
-            Leave a question blank if you prefer not to answer. For multiple-choice lists, use Ctrl
-            (Windows) or Command (Mac) to select more than one option.
+            Leave a question blank if you prefer not to answer.
           </p>
         </div>
         <div class="{% if profile %}modal-footer{% else %}card-footer{% endif %}">
@@ -306,6 +308,55 @@
     </div>
   </div>
       {% if profile %}
+      <div class="card mt-3">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">Your plan for today and tomorrow</h3>
+            <div class="text-secondary small">Personalized using your profile, health details, and food allergies. Suggestions rotate by date.</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            {% for schedule in daily_schedules %}
+            <div class="col-lg-6">
+              <section class="border rounded h-100 p-3" aria-labelledby="schedule-{{ forloop.counter }}">
+                <h4 class="h4" id="schedule-{{ forloop.counter }}">{{ schedule.label }} <span class="text-secondary fw-normal small">{{ schedule.date|date:"l, F j" }}</span></h4>
+                <h5 class="h5 mt-3">Food</h5>
+                {% if schedule.meals %}
+                <div class="list-group list-group-flush">
+                  {% for meal in schedule.meals %}
+                  <div class="list-group-item px-0">
+                    <div class="d-flex justify-content-between gap-3">
+                      <div>
+                        <strong>{{ meal.time }} · {{ meal.meal_type|title }}</strong>
+                        <div>{{ meal.food.name }}</div>
+                        <div class="text-secondary small">{{ meal.food.calories }} kcal</div>
+                      </div>
+                      {% if meal.food.estimated_cost is not None %}<span class="text-nowrap">₱{{ meal.food.estimated_cost }}</span>{% endif %}
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-secondary small">No matching food recommendations are available for this schedule.</p>
+                {% endif %}
+                <h5 class="h5 mt-3">Exercise</h5>
+                {% if schedule.exercise %}
+                <div><strong>{{ schedule.exercise.time }}</strong> · {{ schedule.exercise.item.name }}</div>
+                <div class="text-secondary small">{{ schedule.exercise.item.duration_minutes }} minutes · {{ schedule.exercise.item.get_intensity_display }}</div>
+                {% else %}
+                <p class="text-secondary small">No matching exercise recommendations are available.</p>
+                {% endif %}
+                {% if profile.daily_food_budget and schedule.food_total is not None %}
+                <div class="border-top mt-3 pt-2 text-secondary small">Estimated food total: ₱{{ schedule.food_total|floatformat:2 }}</div>
+                {% endif %}
+              </section>
+            </div>
+            {% endfor %}
+          </div>
+          <p class="text-secondary small mt-3 mb-0">These are general suggestions, not medical advice. Follow your healthcare professional’s guidance.</p>
+        </div>
+      </div>
       <div class="row row-cards mt-3">
         <div class="col-lg-6">
           <div class="card h-100">
